@@ -1,0 +1,137 @@
+[
+  {
+    "signalId": 1,
+    "description": "32bit",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 2,
+    "description": "32signed",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 1,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 3,
+    "description": "16bit",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 2,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 4,
+    "description": "16signed",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 3,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 5,
+    "description": "18bit",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 4,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 6,
+    "description": "8signed",
+    "type": 0,
+    "channelType": 5,
+    "dataItemFormatType": 0,
+    "dataType": 5,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 7,
+    "description": "channel-7-slider",
+    "type": 0,
+    "channelType": 3,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 8,
+    "description": "channel-8-toggle",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 9,
+    "description": "channel-9-momentary",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 10,
+    "description": "32-down",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 11,
+    "description": "32-up",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 12,
+    "description": "16-down",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 13,
+    "description": "16-up",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 14,
+    "description": "8-down",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  },
+  {
+    "signalId": 15,
+    "description": "8-up",
+    "type": 0,
+    "channelType": 1,
+    "dataItemFormatType": 0,
+    "dataType": 0,
+    "channelSettingType": 0
+  }
+]

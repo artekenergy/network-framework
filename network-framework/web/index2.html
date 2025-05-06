@@ -1,0 +1,109 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebSocket Client with Heartbeat</title>
+  </head>
+  <body>
+    <h2>WebSocket Client with Heartbeat</h2>
+
+    <label>WebSocket URL:</label>
+    <input id="wsUrl" value="ws://172.16.11.7:8888/ws" />
+    <button id="connectBtn">Connect</button>
+
+    <label>Message to Send:</label>
+    <input id="messageInput" placeholder="Hello, WebSocket!" />
+    <button id="sendBtn">Send Message</button>
+
+    <div id="log"></div>
+
+    <script>
+      ;(function () {
+        let socket = null
+        let lastHeartbeatTime = 0
+        let fallbackInterval = null
+
+        const log = (msg) => {
+          const logDiv = document.getElementById("log")
+          const entry = document.createElement("div")
+          entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+          logDiv.appendChild(entry)
+          logDiv.scrollTop = logDiv.scrollHeight
+        }
+
+        function sendAck() {
+          const ackMsg = {
+            messagetype: 128,
+            messagecmd: 0,
+            size: 1,
+            data: [0],
+          }
+          socket.send(JSON.stringify(ackMsg))
+          log("📤 Sent heartbeat ACK")
+        }
+
+        function sendInfoRequest() {
+          const req = {
+            messagetype: 49,
+            messagecmd: 1,
+            size: 3,
+            data: [0, 0, 0],
+          }
+          socket.send(JSON.stringify(req))
+          log("📤 Sent info request (fallback)")
+        }
+
+        function setupWatchdog() {
+          if (fallbackInterval) clearInterval(fallbackInterval)
+          fallbackInterval = setInterval(() => {
+            if (Date.now() - lastHeartbeatTime > 10000) {
+              sendInfoRequest()
+            }
+          }, 5000)
+        }
+
+        document.getElementById("connectBtn").addEventListener("click", () => {
+          const url = document.getElementById("wsUrl").value
+          if (socket && socket.readyState === WebSocket.OPEN) return
+
+          socket = new WebSocket(url)
+          socket.onopen = () => {
+            log("✅ Connected")
+            setupWatchdog()
+          }
+
+          socket.onmessage = (event) => {
+            log("📩 Message received: " + event.data)
+            try {
+              const msg = JSON.parse(event.data)
+              if (msg.messagetype === 48 && msg.messagecmd === 5) {
+                lastHeartbeatTime = Date.now()
+                sendAck()
+                log("❤️ Heartbeat received")
+              }
+            } catch (e) {
+              log("⚠️ JSON parse error")
+            }
+          }
+
+          socket.onerror = (e) =>
+            log("❌ Error: " + (e.message || "Unknown error"))
+          socket.onclose = () => {
+            log("🔌 Connection closed")
+            if (fallbackInterval) clearInterval(fallbackInterval)
+          }
+        })
+
+        document.getElementById("sendBtn").addEventListener("click", () => {
+          const message = document.getElementById("messageInput").value
+          if (socket?.readyState !== WebSocket.OPEN) {
+            log("⚠️ Not connected")
+            return
+          }
+          socket.send(message)
+          log("📤 Sent: " + message)
+        })
+      })()
+    </script>
+  </body>
+</html>

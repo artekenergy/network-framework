@@ -1,0 +1,11 @@
+{
+  "id": "1d91c2f0-2626-11f0-a956-775f9af55da4",
+  "path": "index1.html",
+  "title": "New Application 1",
+  "icon": "/images/icon-default.png",
+  "devices": [
+    "MFD",
+    "APP"
+  ],
+  "main": false
+}

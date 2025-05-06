@@ -1,0 +1,15 @@
+{
+  "projectTitle": "v2-signal-test",
+  "netlistChecksum": "303299907",
+  "empirBusStudioConfigFileId": "a3905584-3b5d-4e04-ab61-01968951ba6a",
+  "empirBusStudioConfigFileVersion": "+",
+  "projectFileId": "01e95067-04e2-4a46-a1a6-01968951ee6e",
+  "projectFileVersion": "0+",
+  "exportGuid": "",
+  "wduWebVersion": "3.3.0",
+  "graphicsToolVersion": "1.64.1+c2ce36faa41400c7a9dfdb3a7f6dc2328d9c1991",
+  "buildEnvironment": "Production",
+  "targetConfiguration": "test",
+  "targetPlatform": "WDU",
+  "targetPlatformVersion": "3.0.0"
+}

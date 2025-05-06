@@ -1,0 +1,10 @@
+{
+  "id": "dc166c20-287f-11f0-9cae-e115d7469ef7",
+  "path": "index4.html",
+  "title": "Core-3",
+  "icon": "/images/icon-default.png",
+  "devices": [
+    "APP"
+  ],
+  "main": false
+}

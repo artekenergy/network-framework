@@ -1,0 +1,992 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Static fallback subscription request in case JS injection fails -->
+    <script id="mfd-channel-subscription" type="application/json">
+      {
+        "messagetype": 96,
+        "messagecmd": 0,
+        "size": 32,
+        "data": [
+          15, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0,
+          11, 0, 12, 0, 13, 0, 14, 0, 15, 0
+        ]
+      }
+    </script>
+
+    <title>MQTT + WebSocket Auto Clients</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 1em;
+        max-width: 700px;
+        margin: auto;
+        background-color: #fff;
+      }
+      section {
+        margin-bottom: 2em;
+        display: none;
+      }
+      input,
+      button {
+        margin: 0.3em 0;
+        padding: 0.4em;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .signal-box {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 0.75em;
+        margin: 1em 0;
+        background: #f9f9f9;
+        text-align: center;
+        max-width: 200px;
+      }
+
+      .signal-label {
+        font-size: 0.85em;
+        color: #555;
+        margin-bottom: 0.25em;
+      }
+
+      .signal-value {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: #333;
+        min-height: 1.2em;
+      }
+
+      .signal-unit {
+        font-size: 0.8em;
+        color: #777;
+        margin-top: 0.25em;
+      }
+      .log {
+        background: #f1f1f1;
+        padding: 0.5em;
+        height: 150px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.9em;
+        display: none;
+      }
+      .chip {
+        display: inline-block;
+        padding: 0.25em 0.75em;
+        margin: 0.25em 0.25em 0.75em 0;
+        font-size: 0.85em;
+        border-radius: 16px;
+        background-color: #ccc;
+        color: #000;
+      }
+      .chip.connected {
+        background-color: #4caf50;
+        color: #fff;
+      }
+      .pulse-btn.active {
+        background-color: #4caf50;
+        color: white;
+      }
+      .chip.disconnected {
+        background-color: #f44336;
+        color: #fff;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1em;
+        margin-top: 1.5em;
+      }
+
+      .stat-box {
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1em;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      .stat-label {
+        font-size: 0.9em;
+        color: #555;
+        margin-bottom: 0.25em;
+      }
+
+      .stat-value {
+        font-size: 1.4em;
+        font-weight: 600;
+        color: #222;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .stat-box {
+          background: #1e1e1e;
+          border-color: #333;
+        }
+        .stat-label {
+          color: #aaa;
+        }
+        .stat-value {
+          color: #fff;
+        }
+      }
+      #debugToggleContainer {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Demo Controls</h2>
+
+    <!-- Momentary -->
+    <button id="momentaryBtn" data-channel-id="9">
+      Momentary Switch (CH 9)
+    </button>
+    <button class="pulse-btn" data-channel-id="8" data-signal-id="8">
+      Pulse Button (CH 8)
+    </button>
+
+    <!-- Slider -->
+    <label for="dimmerSlider">Dimmer Slider (CH 27)</label>
+    <input
+      type="range"
+      id="dimmerSlider"
+      min="0"
+      max="1000"
+      step="1"
+      data-channel-id="7"
+    />
+
+    <!-- WebSocket Signal Value -->
+    <div class="signal-box" data-signal-id="1">
+      <div class="signal-label">Signal 1</div>
+      <div class="signal-value">—</div>
+      <div class="signal-unit"></div>
+    </div>
+
+    <!-- MQTT Signal Value -->
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Battery SOC</div>
+        <div class="stat-value" id="batterySoc">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Battery Voltage</div>
+        <div class="stat-value" id="batteryVoltage">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Battery Current</div>
+        <div class="stat-value" id="batteryCurrent">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Battery Power</div>
+        <div class="stat-value" id="batteryPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Solar Power</div>
+        <div class="stat-value" id="solarPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Solar User Yield</div>
+        <div class="stat-value" id="solarUserYield">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Input Power</div>
+        <div class="stat-value" id="acInputPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Output Power</div>
+        <div class="stat-value" id="acOutputPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">VE.Bus State</div>
+        <div class="stat-value" id="vebusState">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">VE.Bus Mode</div>
+        <div class="stat-value" id="vebusMode">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Consumption Power</div>
+        <div class="stat-value" id="acConsumptionPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Consumption Current</div>
+        <div class="stat-value" id="acConsumptionCurrent">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Tank Level</div>
+        <div class="stat-value" id="tank0Level">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Temperature Sensor</div>
+        <div class="stat-value" id="tempSensor0">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">GPS Altitude</div>
+        <div class="stat-value" id="gpsAltitude">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">GPS Speed</div>
+        <div class="stat-value" id="gpsSpeed">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">DC System Voltage</div>
+        <div class="stat-value" id="dcSystemVoltage">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">DC System Current</div>
+        <div class="stat-value" id="dcSystemCurrent">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">DC System Power</div>
+        <div class="stat-value" id="dcSystemPower">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Input Source 1</div>
+        <div class="stat-value" id="acInputSource1">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AC Input Source 2</div>
+        <div class="stat-value" id="acInputSource2">--</div>
+      </div>
+    </div>
+
+    <div id="debugToggleContainer">
+      <label>
+        <input type="checkbox" id="debugToggle" /> Enable Debug Logging + UI
+      </label>
+    </div>
+
+    <section id="mqttSection">
+      <h2>
+        MQTT WebSocket Client
+        <span id="mqttChip" class="chip disconnected">MQTT Disconnected</span>
+      </h2>
+      <input id="brokerUrl" value="ws://172.16.189.190/websocket-mqtt" />
+      <input id="subscribeTopic" value="test/topic" />
+      <input id="publishMessage" placeholder="Type message to publish..." />
+      <button id="publishBtn">Publish Message</button>
+      <button id="keepaliveBtn">Send Keepalive Empty Message</button>
+      <div id="mqttLog" class="log"></div>
+      <div id="mqttDecodedPanel" style="margin-top: 2em">
+        <h3>Live MQTT Values</h3>
+        <div id="mqttDecodedList"></div>
+      </div>
+      <div id="mqttSignalVal" style="margin-top: 1em">
+        (latest MQTT payload)
+      </div>
+    </section>
+
+    <section id="wsSection">
+      <h2>
+        WebSocket Heartbeat Client
+        <span id="wsChip" class="chip disconnected">WS Disconnected</span>
+      </h2>
+      <input id="wsUrl" value="ws://172.16.11.7:8888/ws" />
+      <input id="messageInput" placeholder="Send plain message..." />
+      <button id="wsSendBtn">Send Message</button>
+      <div id="wsLog" class="log"></div>
+    </section>
+
+    <script>
+      const signalStateMap = new Map();
+      let debugEnabled = false;
+      let mqttSocket = null;
+      let wsSocket = null;
+      let signalInfo = [];
+
+      document.addEventListener("DOMContentLoaded", function () {
+        fetch("signal-info.json")
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (json) {
+            signalInfo = json;
+            indexSignalTypes();
+            const signalIds = signalInfo.map(function (s) {
+              return s.signalId;
+            });
+          })
+          .catch(function (err) {
+            console.error("Failed to load signal-info.json", err);
+          });
+
+        enableDebugLongTouch();
+      });
+
+      function indexSignalTypes() {
+        signalInfo.forEach(({ signalId, dataType }) => {
+          signalDataTypes.set(signalId, dataType);
+        });
+      }
+
+      function enableDebugLongTouch() {
+        const header = document.querySelector("h2");
+
+        let touchTimer = null;
+
+        function startTimer() {
+          touchTimer = setTimeout(function () {
+            toggleDebugUI();
+            console.log("🔧 Debug mode toggled via long press");
+          }, 3000);
+        }
+
+        function cancelTimer() {
+          if (touchTimer) {
+            clearTimeout(touchTimer);
+            touchTimer = null;
+          }
+        }
+
+        header.addEventListener("mousedown", startTimer);
+        header.addEventListener("mouseup", cancelTimer);
+        header.addEventListener("mouseleave", cancelTimer);
+        header.addEventListener("touchstart", startTimer);
+        header.addEventListener("touchend", cancelTimer);
+        header.addEventListener("touchcancel", cancelTimer);
+      }
+
+      const topicToElementId = {
+        "N/c0619ab5efb3/battery/0/Soc": "batterySoc",
+        "N/c0619ab5efb3/system/0/Dc/Battery/ChargeVoltage": "batteryVoltage",
+        "N/c0619ab5efb3/vecan/vecan1/Link/BatteryCurrent": "batteryCurrent",
+        "N/c0619ab5efb3/battery/0/Dc/0/Power": "batteryPower",
+
+        "N/c0619ab5efb3/solarcharger/0/Yield/Power": "solarPower",
+        "N/c0619ab5efb3/solarcharger/0/Yield/User": "solarUserYield",
+
+        "N/c0619ab5efb3/vebus/0/Ac/ActiveIn/L1/Power": "acInputPower",
+        "N/c0619ab5efb3/system/0/Ac/Grid/L1/Current": "acInputCurrent",
+        "N/c0619ab5efb3/vebus/0/Ac/Out/L1/Power": "acOutputPower",
+        "N/c0619ab5efb3/vebus/0/State": "vebusState",
+        "N/c0619ab5efb3/vebus/0/Mode": "vebusMode",
+
+        "N/c0619ab5efb3/system/0/Ac/Consumption/L1/Power": "acConsumptionPower",
+        "N/c0619ab5efb3/system/0/Ac/Consumption/L1/Current":
+          "acConsumptionCurrent",
+
+        "N/c0619ab5efb3/tank/0/Level": "tank0Level",
+        "N/c0619ab5efb3/temperature/0/Temperature": "tempSensor0",
+
+        "N/c0619ab5efb3/gps/0/Altitude": "gpsAltitude",
+        "N/c0619ab5efb3/gps/0/Speed": "gpsSpeed",
+
+        "N/c0619ab5efb3/system/0/Dc/Voltage": "dcSystemVoltage",
+        "N/c0619ab5efb3/system/0/Dc/Current": "dcSystemCurrent",
+        "N/c0619ab5efb3/system/0/Dc/Power": "dcSystemPower",
+
+        "N/c0619ab5efb3/settings/0/Settings/SystemSetup/AcInput1":
+          "acInputSource1",
+        "N/c0619ab5efb3/settings/0/Settings/SystemSetup/AcInput2":
+          "acInputSource2",
+      };
+
+      const MessageType = {
+        mfdStatus: 16,
+        mfdControl: 17,
+        channelInfo: 32,
+        channelCmd: 33,
+        systemCmd: 48,
+        systemReq: 49,
+        systemWrite: 50,
+        syncCmd: 64,
+        alertManagement: 81,
+        nmeaMsg: 82,
+        subscriptionRequest: 96,
+        clientControlCommand: 112,
+        acknowledgement: 128,
+      };
+
+      const ChannelCommand = {
+        toggle: 0,
+        momentary: 1,
+        dimmerUpdate: 3,
+        statusUpdate: 5,
+      };
+
+      const signalDataTypes = new Map();
+      function indexSignalTypes() {
+        signalInfo.forEach(({ signalId, dataType }) => {
+          signalDataTypes.set(signalId, dataType);
+        });
+      }
+
+      const ValueTypes = {
+        DATAITEM_GENERIC_DEC3: 0,
+        TEMPERATURE_CELCIUS: 42,
+        TEMPERATURE_FAHRENHEIT: 43,
+      };
+
+      const SignalConversions = {
+        [ValueTypes.DATAITEM_GENERIC_DEC3]: {
+          label: "",
+          convert: (e) => e / 1e3,
+        },
+        [ValueTypes.TEMPERATURE_CELCIUS]: {
+          label: "°C",
+          convert: (e) => e / 1e3 - 273.15,
+        },
+        [ValueTypes.TEMPERATURE_FAHRENHEIT]: {
+          label: "°F",
+          convert: (e) => (e / 1e3) * 1.8 - 459.67,
+        },
+      };
+
+      const SystemCommand = {
+        serviceProviderHeartbeat: 0,
+        wduInfo: 1,
+        wduSettingsUpdated: 4,
+        wduHeartbeat: 5,
+        applicationSelection: 10,
+      };
+
+      const AcknowledgementCommand = {
+        acknowledgementAck: 0,
+      };
+
+      const DeviceCommands = {
+        receivedWduHeartbeatAck() {
+          return {
+            messagetype: MessageType.acknowledgement,
+            messagecmd: AcknowledgementCommand.acknowledgementAck,
+            size: 1,
+            data: [0],
+          };
+        },
+        requestWduInfo() {
+          return {
+            messagetype: MessageType.systemReq,
+            messagecmd: SystemCommand.wduInfo,
+            size: 3,
+            data: [0, 0, 0],
+          };
+        },
+      };
+
+      const btn = document.getElementById("momentaryBtn");
+
+      function sendMomentary(id, state) {
+        if (wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+          wsSocket.send(JSON.stringify(DeviceCommands.momentary(id, state)));
+        }
+      }
+
+      btn.addEventListener("mousedown", function () {
+        sendMomentary(parseInt(this.dataset.channelId, 10), 1);
+      });
+
+      btn.addEventListener("mouseup", function () {
+        sendMomentary(parseInt(this.dataset.channelId, 10), 0);
+      });
+
+      // (Optional) add touch support too
+      btn.addEventListener("touchstart", function () {
+        sendMomentary(parseInt(this.dataset.channelId, 10), 1);
+      });
+      btn.addEventListener("touchend", function () {
+        sendMomentary(parseInt(this.dataset.channelId, 10), 0);
+      });
+
+      // ===== COMMAND HELPERS =====
+      DeviceCommands.momentary = function (channelId, state) {
+        return {
+          messagetype: 17,
+          messagecmd: 1,
+          size: 3,
+          data: [channelId & 0xff, (channelId >> 8) & 0xff, state ? 1 : 0],
+        };
+      };
+
+      DeviceCommands.dimmer = function (channelId, level) {
+        const value = Math.max(0, Math.min(1000, level)); // clamp to 0–1000
+        const valueLow = value & 0xff;
+        const valueHigh = (value >> 8) & 0xff;
+        const statusByte = 0; // 0 = ON, 1 = OFF — based on reference app
+
+        return {
+          messagetype: MessageType.mfdControl,
+          messagecmd: ChannelCommand.dimmerUpdate,
+          size: 5,
+          data: [
+            channelId & 0xff, // byte 0
+            (channelId >> 8) & 0xff, // byte 1
+            statusByte, // byte 2 (on/off)
+            valueLow, // byte 3 (dimmer level low byte)
+            valueHigh, // byte 4 (dimmer level high byte)
+          ],
+        };
+      };
+
+      function updateChip(id, connected, label) {
+        const chip = document.getElementById(id);
+        chip.className = `chip ${connected ? "connected" : "disconnected"}`;
+        chip.textContent = connected
+          ? `${label} Connected`
+          : `${label} Disconnected`;
+      }
+
+      function formatSignal(rawValue, valueType) {
+        const handler = SignalConversions[valueType];
+        if (!handler) return rawValue;
+        return handler.convert(rawValue).toFixed(1) + " " + handler.label;
+      }
+
+      function decodeSignalValue(signalId, fullPayload, offset = 4) {
+        const dataType = signalDataTypes.get(signalId);
+        const view = new DataView(new Uint8Array(fullPayload).buffer);
+
+        switch (dataType) {
+          case 0: // int32
+            return view.getInt32(offset, true);
+          case 1: // same as int32?
+            return view.getInt32(offset, true);
+          case 2: // uint16
+            return view.getUint16(offset, true);
+          case 3:
+            return view.getInt16(offset, true);
+          case 4:
+            return (view.getUint32(offset, true) >>> 0) & 0x3ffff;
+          case 5:
+            return view.getInt8(offset);
+          default:
+            return null;
+        }
+      }
+
+      function toggleDebugUI(forceState) {
+        debugEnabled =
+          typeof forceState === "boolean" ? forceState : !debugEnabled;
+        document.getElementById("mqttSection").style.display = debugEnabled
+          ? "block"
+          : "none";
+        document.getElementById("wsSection").style.display = debugEnabled
+          ? "block"
+          : "none";
+        document.getElementById("mqttLog").style.display = debugEnabled
+          ? "block"
+          : "none";
+        document.getElementById("wsLog").style.display = debugEnabled
+          ? "block"
+          : "none";
+      }
+
+      document.addEventListener("keydown", function (e) {
+        if (e.altKey && e.shiftKey && e.code === "KeyD") {
+          toggleDebugUI();
+          console.log("🔧 Debug mode toggled via keyboard shortcut");
+        }
+      });
+
+      // ==================
+      // MQTT CLIENT SETUP
+      // ==================
+      (function () {
+        const url = "ws://172.16.17.18/websocket-mqtt";
+        const topic = "test/topic";
+
+        function encodeUTF8(str) {
+          return Array.from(str).map((c) => c.charCodeAt(0));
+        }
+
+        function createConnectPacket(clientId) {
+          const cid = encodeUTF8(clientId);
+          const payloadLength = 2 + cid.length;
+          const remainingLength = 10 + payloadLength;
+          return new Uint8Array([
+            0x10,
+            remainingLength,
+            0x00,
+            0x04,
+            0x4d,
+            0x51,
+            0x54,
+            0x54,
+            0x04,
+            0x02,
+            0x00,
+            0x3c,
+            0x00,
+            cid.length,
+            ...cid,
+          ]);
+        }
+
+        function createSubscribePacket(packetId, topic) {
+          const topicBytes = encodeUTF8(topic);
+          const remainingLength = 5 + topicBytes.length;
+          return new Uint8Array([
+            0x82,
+            remainingLength,
+            (packetId >> 8) & 0xff,
+            packetId & 0xff,
+            0x00,
+            topicBytes.length,
+            ...topicBytes,
+            0x00,
+          ]);
+        }
+
+        function createPublishPacket(topic, payload) {
+          const topicBytes = encodeUTF8(topic);
+          const payloadBytes = encodeUTF8(payload);
+          const remainingLength = 2 + topicBytes.length + payloadBytes.length;
+          return new Uint8Array([
+            0x30,
+            remainingLength,
+            0x00,
+            topicBytes.length,
+            ...topicBytes,
+            ...payloadBytes,
+          ]);
+        }
+
+        function mqttLog(msg) {
+          if (!debugEnabled) return;
+          const div = document.getElementById("mqttLog");
+          const entry = document.createElement("div");
+          entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+          div.appendChild(entry);
+          div.scrollTop = div.scrollHeight;
+        }
+
+        mqttSocket = new WebSocket(url, "mqtt");
+        mqttSocket.binaryType = "arraybuffer";
+
+        mqttSocket.onopen = () => {
+          const clientId = "mqttClient" + Math.floor(Math.random() * 1000);
+          updateChip("mqttChip", true, "MQTT");
+          mqttLog("Connected. Sending CONNECT");
+          mqttSocket.send(createConnectPacket(clientId));
+        };
+
+        setInterval(() => {
+          if (
+            mqttSocket &&
+            mqttSocket.readyState === WebSocket.OPEN &&
+            window.cerboSerial
+          ) {
+            const topic = `R/${window.cerboSerial}/keepalive`;
+            const heartbeatPayload = JSON.stringify({
+              "keepalive-options": ["suppress-republish"],
+            });
+            const keepalivePacket = createPublishPacket(
+              topic,
+              heartbeatPayload
+            );
+            mqttSocket.send(keepalivePacket);
+
+            mqttLog(`📤 Sent keepalive to ${topic}`);
+          }
+        }, 55000);
+
+        mqttSocket.onmessage = function (event) {
+          const buffer = new Uint8Array(event.data);
+          let offset = 0;
+
+          while (offset < buffer.length) {
+            const packetType = buffer[offset] >> 4;
+            const remainingLength = buffer[offset + 1];
+
+            const totalLength = 2 + remainingLength;
+            const data = buffer.slice(offset, offset + totalLength);
+            mqttLog(`Raw MQTT Data: [${Array.from(data).join(", ")}]`);
+
+            if (packetType === 2) {
+              const serial = "c0619ab5efb3";
+              const topic = `N/${serial}/#`;
+              mqttLog(`📥 Sending subscription to ${topic}`);
+              mqttSocket.send(createSubscribePacket(16, topic));
+            } else if (packetType === 3) {
+              const topicLength = (data[2] << 8) | data[3];
+              const topicBytes = data.slice(4, 4 + topicLength);
+              const topic = new TextDecoder().decode(topicBytes);
+
+              const payloadStart = 4 + topicLength;
+              const payloadBytes = data.slice(payloadStart);
+              const payloadText = new TextDecoder().decode(payloadBytes);
+
+              mqttLog(`📩 Message received on topic "${topic}"`);
+              document.getElementById("mqttSignalVal").textContent =
+                payloadText;
+
+              try {
+                const json = JSON.parse(payloadText);
+
+                if (typeof json.value !== "undefined") {
+                  updateDecodedList(topic, json.value);
+
+                  // ✅ Update specific UI elements based on topic
+                  const elementId = topicToElementId[topic];
+                  if (elementId) {
+                    const el = document.getElementById(elementId);
+                    if (el) el.textContent = json.value;
+                  }
+                }
+
+                if (typeof json.value === "string" && !window.cerboSerial) {
+                  mqttLog("📡 Received Cerbo Serial: " + json.value);
+                  window.cerboSerial = json.value;
+                  mqttSocket.send(
+                    createPublishPacket(`R/${window.cerboSerial}/keepalive`, "")
+                  );
+                }
+              } catch (e) {
+                mqttLog("⚠️ Failed to parse JSON payload: " + e.message);
+              }
+            }
+
+            offset += totalLength;
+          }
+        };
+
+        const mqttValues = new Map();
+
+        function updateDecodedList(topic, value) {
+          const list = document.getElementById("mqttDecodedList");
+          let row = list.querySelector(`[data-topic="${topic}"]`);
+
+          if (!row) {
+            row = document.createElement("div");
+            row.setAttribute("data-topic", topic);
+            row.style.padding = "0.25em 0";
+            row.style.borderBottom = "1px solid #eee";
+            row.style.fontSize = "0.9em";
+
+            const topicSpan = document.createElement("span");
+            topicSpan.style.fontWeight = "bold";
+            topicSpan.textContent = topic + ": ";
+
+            const valueSpan = document.createElement("span");
+            valueSpan.className = "live-value";
+            valueSpan.textContent = value;
+
+            row.appendChild(topicSpan);
+            row.appendChild(valueSpan);
+            list.appendChild(row);
+          } else {
+            const valueSpan = row.querySelector(".live-value");
+            if (valueSpan) valueSpan.textContent = value;
+          }
+        }
+
+        mqttSocket.onclose = () => updateChip("mqttChip", false, "MQTT");
+        mqttSocket.onerror = () => updateChip("mqttChip", false, "MQTT");
+
+        document
+          .getElementById("keepaliveBtn")
+          .addEventListener("click", function () {
+            const keepaliveTopic = "R/c0619ab5efb3/keepalive";
+            if (mqttSocket && mqttSocket.readyState === WebSocket.OPEN) {
+              const heartbeatPayload = JSON.stringify({
+                "keepalive-options": ["suppress-republish"],
+              });
+              const packet = createPublishPacket(
+                keepaliveTopic,
+                heartbeatPayload
+              );
+              mqttSocket.send(packet);
+              mqttLog(`📤 Sent empty message to ${keepaliveTopic}`);
+            }
+          });
+
+        document.getElementById("publishBtn").addEventListener("click", () => {
+          const topic = document.getElementById("subscribeTopic").value;
+          const msg = document.getElementById("publishMessage").value;
+          if (mqttSocket && mqttSocket.readyState === WebSocket.OPEN) {
+            mqttSocket.send(createPublishPacket(topic, msg));
+            mqttLog(`Published: "${msg}" to ${topic}`);
+          }
+        });
+      })();
+
+      // ========================
+      // HEARTBEAT WS CLIENT SETUP
+      // ========================
+      (function () {
+        const url = "ws://" + window.location.hostname + ":8888/ws";
+        let lastHeartbeatTime = 0;
+        let fallbackInterval = null;
+
+        function log(msg) {
+          if (!debugEnabled) return;
+          const div = document.getElementById("wsLog");
+          const entry = document.createElement("div");
+          entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+          div.appendChild(entry);
+          div.scrollTop = div.scrollHeight;
+        }
+
+        function sendAck() {
+          wsSocket.send(
+            JSON.stringify(DeviceCommands.receivedWduHeartbeatAck())
+          );
+          log("Sent heartbeat ACK");
+        }
+
+        function sendInfoRequest() {
+          wsSocket.send(JSON.stringify(DeviceCommands.requestWduInfo()));
+          log("Sent info request (fallback)");
+        }
+
+        function setupWatchdog() {
+          if (fallbackInterval) clearInterval(fallbackInterval);
+          fallbackInterval = setInterval(() => {
+            if (Date.now() - lastHeartbeatTime > 10000) sendInfoRequest();
+          }, 5000);
+        }
+
+        wsSocket = new WebSocket(url);
+
+        wsSocket.onopen = () => {
+          updateChip("wsChip", true, "WS");
+          log("Connected");
+          setupWatchdog();
+
+          // If the subscription script exists, send it
+          const script = document.getElementById("mfd-channel-subscription");
+          if (script) {
+            wsSocket.send(script.textContent);
+            const parsed = JSON.parse(script.textContent);
+            log(
+              "📤 Sent subscription request for " +
+                parsed.data.length / 2 +
+                " signals"
+            );
+          }
+        };
+
+        wsSocket.onmessage = (event) => {
+          log("Raw WS Message: " + event.data);
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.messagetype === 48 && msg.messagecmd === 5) {
+              lastHeartbeatTime = Date.now();
+              sendAck();
+              log("Heartbeat received");
+            }
+            if (
+              msg.messagetype === MessageType.mfdStatus &&
+              msg.messagecmd === 1
+            ) {
+              const signalId = msg.data[0] | (msg.data[1] << 8);
+              const serverState = msg.data[2];
+              signalStateMap.set(signalId, serverState); // 1 = active, 0 = inactive
+
+              const pulseButtons = document.querySelectorAll(
+                `[data-signal-id="${signalId}"]`
+              );
+              pulseButtons.forEach(function (btn) {
+                const isActive = btn.classList.contains("active");
+
+                if (serverState === 1 && !isActive) {
+                  btn.classList.add("active");
+                } else if (serverState === 0 && isActive) {
+                  btn.classList.remove("active");
+                }
+              });
+            }
+            if (
+              msg.messagetype === MessageType.mfdStatus &&
+              msg.messagecmd === 5 &&
+              msg.data &&
+              msg.data.length >= 6
+            ) {
+              const signalId = msg.data[0] | (msg.data[1] << 8);
+              const valueBytes = new Uint8Array(msg.data.slice(2));
+              const rawValue = decodeSignalValue(
+                signalId,
+                new Uint8Array(msg.data),
+                4
+              );
+              const type = signalDataTypes.get(signalId);
+
+              const handler = SignalConversions[type];
+              const displayValue = handler
+                ? handler.convert(rawValue).toFixed(1)
+                : rawValue;
+              const unit = handler ? handler.label : "";
+
+              const boxes = document.querySelectorAll(
+                `[data-signal-id="${signalId}"]`
+              );
+              boxes.forEach((el) => {
+                const valEl = el.querySelector(".signal-value");
+                const unitEl = el.querySelector(".signal-unit");
+                if (valEl) valEl.textContent = displayValue;
+                if (unitEl) unitEl.textContent = unit;
+              });
+            }
+          } catch (e) {
+            log("Non-JSON message: " + event.data);
+          }
+        };
+
+        wsSocket.onclose = () => updateChip("wsChip", false, "WS");
+        wsSocket.onerror = () => updateChip("wsChip", false, "WS");
+
+        document
+          .getElementById("dimmerSlider")
+          .addEventListener("input", function () {
+            const id = parseInt(this.dataset.channelId, 10);
+            const value = parseInt(this.value, 10);
+            if (wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+              wsSocket.send(JSON.stringify(DeviceCommands.dimmer(id, value)));
+            }
+          });
+
+        document.getElementById("wsSendBtn").addEventListener("click", () => {
+          const msg = document.getElementById("messageInput").value;
+          if (wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+            wsSocket.send(msg);
+            log(`Sent: ${msg}`);
+          }
+        });
+        document.querySelectorAll(".pulse-btn").forEach(function (btn) {
+          const channelId = parseInt(btn.dataset.channelId, 10);
+          const signalId = parseInt(btn.dataset.signalId, 10);
+
+          function sendMomentary(state) {
+            if (wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+              wsSocket.send(
+                JSON.stringify(DeviceCommands.momentary(channelId, state))
+              );
+            }
+          }
+
+          btn.addEventListener("mousedown", function () {
+            btn.classList.add("active"); // immediate feedback
+            sendMomentary(1);
+          });
+
+          btn.addEventListener("mouseup", function () {
+            sendMomentary(0);
+          });
+
+          btn.addEventListener("touchstart", function () {
+            btn.classList.add("active"); // immediate feedback
+            sendMomentary(1);
+          });
+
+          btn.addEventListener("touchend", function () {
+            sendMomentary(0);
+          });
+        });
+
+        // ✅ Moved outside the loop
+        setInterval(function () {
+          document.querySelectorAll(".pulse-btn").forEach(function (btn) {
+            const signalId = parseInt(btn.dataset.signalId, 10);
+            const state = signalStateMap.get(signalId);
+            if (typeof state !== "undefined") {
+              btn.classList.toggle("active", state === 1);
+            }
+          });
+        }, 5000);
+      })();
+    </script>
+  </body>
+</html>

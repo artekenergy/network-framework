@@ -1,0 +1,12 @@
+{
+  "short_name": "Core-2",
+  "name": "Core-2",
+  "icons": [
+    {
+      "type": "image/png"
+    }
+  ],
+  "start_url": "index3.html",
+  "display": "standalone",
+  "orientation": "landscape"
+}

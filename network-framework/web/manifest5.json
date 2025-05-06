@@ -1,0 +1,12 @@
+{
+  "short_name": "Core-4",
+  "name": "Core-4",
+  "icons": [
+    {
+      "type": "image/png"
+    }
+  ],
+  "start_url": "index5.html",
+  "display": "standalone",
+  "orientation": "landscape"
+}

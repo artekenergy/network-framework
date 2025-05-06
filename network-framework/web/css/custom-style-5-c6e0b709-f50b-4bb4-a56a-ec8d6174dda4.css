@@ -1,0 +1,17 @@
+#pc-dfb93561-287f-11f0-9cae-e115d7469ef7 {
+    width: 100vw;
+    height: 56.249999999999999999999999999vw;
+    margin-left: 0;
+}
+
+
+
+@media (min-width: 177.77777777777777777777777778vh) {
+ #pc-dfb93561-287f-11f0-9cae-e115d7469ef7 {
+    width: 177.77777777777777777777777778vh;
+    height: 100vh;
+    margin-top: 0;
+}
+
+}
+

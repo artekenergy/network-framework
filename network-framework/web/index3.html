@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>MQTT WebSocket Client</title>
+  </head>
+  <body>
+    <h2>MQTT WebSocket Client</h2>
+
+    <label>Broker URL (WebSocket):</label>
+    <input id="brokerUrl" value="ws://172.16.189.190/websocket-mqtt" />
+
+    <label>Topic to Subscribe:</label>
+    <input id="subscribeTopic" value="test/topic" />
+    <button id="connectBtn">Connect & Subscribe</button>
+
+    <label>Message to Publish:</label>
+    <input id="publishMessage" placeholder="Type message to publish..." />
+    <button id="publishBtn">Publish Message</button>
+
+    <div id="log"></div>
+
+    <script>
+      ;(function () {
+        let socket = null
+
+        function encodeUTF8(str) {
+          return Array.from(str).map((c) => c.charCodeAt(0))
+        }
+
+        function createConnectPacket(clientId) {
+          const cid = encodeUTF8(clientId)
+          const payloadLength = 2 + cid.length
+          const remainingLength = 10 + payloadLength
+
+          return new Uint8Array([
+            0x10,
+            remainingLength,
+            0x00,
+            0x04,
+            0x4d,
+            0x51,
+            0x54,
+            0x54,
+            0x04,
+            0x02,
+            0x00,
+            0x3c,
+            0x00,
+            cid.length,
+            ...cid,
+          ])
+        }
+
+        function createSubscribePacket(packetId, topic) {
+          const topicBytes = encodeUTF8(topic)
+          const remainingLength = 5 + topicBytes.length
+
+          return new Uint8Array([
+            0x82,
+            remainingLength,
+            (packetId >> 8) & 0xff,
+            packetId & 0xff,
+            0x00,
+            topicBytes.length,
+            ...topicBytes,
+            0x00,
+          ])
+        }
+
+        function createPublishPacket(topic, payload) {
+          const topicBytes = encodeUTF8(topic)
+          const payloadBytes = encodeUTF8(payload)
+          const remainingLength = 2 + topicBytes.length + payloadBytes.length
+
+          return new Uint8Array([
+            0x30,
+            remainingLength,
+            0x00,
+            topicBytes.length,
+            ...topicBytes,
+            ...payloadBytes,
+          ])
+        }
+
+        function log(msg) {
+          const logDiv = document.getElementById("log")
+          const entry = document.createElement("div")
+          entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+          logDiv.appendChild(entry)
+          logDiv.scrollTop = logDiv.scrollHeight
+        }
+
+        function connectAndSubscribe() {
+          const url = document.getElementById("brokerUrl").value
+          const topic = document.getElementById("subscribeTopic").value
+
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.close()
+          }
+
+          socket = new WebSocket(url, "mqtt")
+          socket.binaryType = "arraybuffer"
+
+          socket.onopen = function () {
+            const clientId = "webClient" + Math.floor(Math.random() * 1000)
+            log(`Connected. Sending CONNECT with clientId: ${clientId}`)
+            socket.send(createConnectPacket(clientId))
+          }
+
+          socket.onmessage = function (event) {
+            const data = new Uint8Array(event.data)
+            const packetType = data[0] >> 4
+
+            if (packetType === 2) {
+              log("CONNACK received. Subscribing to topic...")
+              socket.send(createSubscribePacket(1, topic))
+            } else if (packetType === 9) {
+              log("SUBACK received. Subscribed successfully.")
+            } else if (packetType === 3) {
+              const topicLength = (data[2] << 8) + data[3]
+              const topic = String.fromCharCode(
+                ...data.slice(4, 4 + topicLength)
+              )
+              const payload = String.fromCharCode(
+                ...data.slice(4 + topicLength)
+              )
+              log(`Message on '${topic}': ${payload}`)
+            } else {
+              log(`Unhandled packet type: ${packetType}`)
+            }
+          }
+
+          socket.onerror = function (err) {
+            log("WebSocket error: " + err.message)
+          }
+
+          socket.onclose = function () {
+            log("Connection closed")
+          }
+        }
+
+        function publishMessage() {
+          const topic = document.getElementById("subscribeTopic").value
+          const payload = document.getElementById("publishMessage").value
+
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            log("Cannot publish: not connected")
+            return
+          }
+
+          if (!payload) {
+            log("Payload is empty")
+            return
+          }
+
+          socket.send(createPublishPacket(topic, payload))
+          log(`Published: "${payload}" to ${topic}`)
+        }
+
+        document
+          .getElementById("connectBtn")
+          .addEventListener("click", connectAndSubscribe)
+        document
+          .getElementById("publishBtn")
+          .addEventListener("click", publishMessage)
+      })()
+    </script>
+  </body>
+</html>
